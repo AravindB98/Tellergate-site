@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TellerGate live demo</title>
+<meta name="description" content="The real TellerGate gateway, compiled to WebAssembly, running in your browser in front of a mock bank. Watch a prompt-injected agent get stopped, approve held payments, halt the agent and tamper with the signed audit log.">
+<link rel="icon" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<nav aria-label="Site"><div class="wrap">
+  <a class="name" href="../"><img src="../assets/favicon.svg" alt="">TellerGate</a>
+  <a href="../#how">How it works</a><a href="../#install">Install</a>
+  <a class="keep" href="../">Back to the site</a>
+</div></nav>
+
+<header class="strip"><div class="wrap">
+  <div>
+    <h1>Live demo</h1>
+    <p>The real TellerGate gateway, compiled to WebAssembly, running in this tab in front of a mock bank. Every decision below comes from the same Go code as <code>make demo</code>. Nothing leaves your browser.</p>
+  </div>
+  <div class="status" id="status" role="status"><span class="dot"></span><span id="status-text">Loading the gateway…</span></div>
+</div></header>
+
+<main class="wrap layout">
+  <div class="main">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="story">Guided walkthrough</button>
+      <button role="tab" aria-selected="false" data-tab="drive">Drive it yourself</button>
+      <button role="tab" aria-selected="false" data-tab="audit">Audit log</button>
+      <button role="tab" aria-selected="false" data-tab="policy">Policy</button>
+    </div>
+
+    <section class="panel" id="tab-story" role="tabpanel">
+      <p class="intro">A treasury AI assistant reads the bank's mailbox. One email carries a prompt injection telling it to wire 48,500 to the attacker, with the word "ignore" hidden behind a zero-width space to beat keyword filters. The assistant is <b>scripted to obey</b>, the worst case for any model. Run the scenes in order.</p>
+      <div class="row" style="margin:16px 0 8px"><button class="btn dark" id="run-next" disabled>Run scene 1</button><button class="btn line" id="run-all" disabled>Run all scenes</button><button class="btn line" id="reset" disabled>Start over</button></div>
+      <ol class="scenes" id="scenes"></ol>
+    </section>
+
+    <section class="panel" id="tab-drive" role="tabpanel" hidden>
+      <p class="intro">Send your own calls to the gateway. Agent calls go over MCP as <code>treasury-assistant</code>; people use the admin API with their own tokens. The panel on the right keeps the bank, the session and the approval queue up to date.</p>
+      <div class="card">
+        <h3>Agent: call a tool</h3>
+        <div class="grid2">
+          <label>Example <select id="preset"></select></label>
+          <label>Tool <select id="tool"></select></label>
+          <label>MCP session <input id="session" value="conv-1" spellcheck="false"></label>
+          <label>Approval ID (to redeem) <input id="approval" placeholder="apr_…" spellcheck="false"></label>
+        </div>
+        <label>Arguments (JSON) <textarea id="args" rows="4" spellcheck="false"></textarea></label>
+        <div class="row"><button class="btn dark" id="send">Send tools/call</button><button class="btn line" id="list-tools">Send tools/list</button><button class="btn line" id="new-session">New clean session</button></div>
+      </div>
+      <div class="card">
+        <h3>People: approve, deny, halt</h3>
+        <div class="grid2">
+          <label>Acting as <select id="actor">
+            <option value="maria">maria.lopez (approver)</option>
+            <option value="james">james.chen (approver, auditor)</option>
+            <option value="priya">priya.nair (overseer, auditor)</option>
+            <option value="agent">the agent's own token</option>
+          </select></label>
+          <label>Approval ID <input id="h-approval" placeholder="apr_…" spellcheck="false"></label>
+          <label>Kill switch scope <input id="scope" value="treasury-assistant" spellcheck="false"></label>
+          <label>Reason <input id="reason" value="suspected injection campaign"></label>
+        </div>
+        <div class="row"><button class="btn line" id="h-approve">Approve</button><button class="btn line" id="h-deny">Deny</button><button class="btn line" id="h-kill">Halt agent</button><button class="btn line" id="h-resume">Resume</button></div>
+      </div>
+      <div class="card" id="response-card">
+        <h3>Response</h3>
+        <div id="response"><p class="muted">Send a call to see the gateway's answer.</p></div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-audit" role="tabpanel" hidden>
+      <p class="intro">Every decision, observation, approval and halt is appended to <code>audit.jsonl</code> by TellerGate's audit package. Each record holds a SHA-256 hash chained to the previous one and an Ed25519 signature over it. This tab's key pair was generated in your browser when the gateway started.</p>
+      <div class="row" style="margin:14px 0"><button class="btn dark" id="verify">Verify the log</button><button class="btn line" id="tamper">Edit one record (DENY → ALLOW)</button><button class="btn line" id="download">Download audit.jsonl</button></div>
+      <div id="verify-out"></div>
+      <p class="muted" style="margin:6px 0 10px">Public key: <code id="pubkey">…</code></p>
+      <div class="tw"><table class="audit"><thead><tr><th>#</th><th>Type</th><th>Summary</th><th>Hash</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
+    </section>
+
+    <section class="panel" id="tab-policy" role="tabpanel" hidden>
+      <p class="intro">This is the <code>configs/policy.json</code> the gateway loaded. Edit it and restart: it goes through the same strict loader as the server, so a typo such as <code>"rsik"</code> is refused instead of silently weakening a rule. Try raising <code>threshold</code>, adding the attacker's account to <code>registered_payees</code>, or changing <code>on_provenance</code>.</p>
+      <textarea id="policy" rows="26" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:12px"><button class="btn dark" id="apply-policy">Apply and restart the gateway</button><button class="btn line" id="restore-policy">Restore the shipped policy</button></div>
+      <div id="policy-out" style="margin-top:12px"></div>
+    </section>
+  </div>
+
+  <aside class="side" aria-label="Live state">
+    <div class="card">
+      <h3>Bank behind TellerGate</h3>
+      <p class="big" id="bal-protected">…</p>
+      <ul class="transfers" id="tr-protected"></ul>
+      <h3 style="margin-top:16px">Same bank, no gateway</h3>
+      <p class="big" id="bal-naive">…</p>
+      <ul class="transfers" id="tr-naive"></ul>
+    </div>
+    <div class="card">
+      <h3>Agent session</h3>
+      <p id="session-state" class="muted">No calls yet.</p>
+    </div>
+    <div class="card">
+      <h3>Approval queue</h3>
+      <div id="queue"><p class="muted">Empty.</p></div>
+    </div>
+    <div class="card">
+      <h3>Kill switch</h3>
+      <div id="halts"><p class="muted">No halts.</p></div>
+    </div>
+  </aside>
+</main>
+
+<footer><div class="wrap">The bank, people, accounts and emails are fictional. Tokens are the demo tokens shipped in <code>configs/principals.json</code>, which end in <code>NOT_FOR_PRODUCTION</code>.<br>&copy; 2026 Aravind Balaji. TellerGate is licensed under the Apache License 2.0.</div></footer>
+
+<script src="memfs.js"></script>
+<script src="wasm_exec.js"></script>
+<script src="demo.js"></script>
+</body>
+</html>

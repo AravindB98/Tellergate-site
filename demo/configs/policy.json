@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "overseers": ["priya.nair"],
+  "agents": {
+    "treasury-assistant": {
+      "description": "Reads the treasury mailbox, answers balance questions, prepares payments",
+      "allowed_tools": ["read_inbox", "get_balance", "list_payees", "transfer_funds"],
+      "rate_per_minute": 60
+    }
+  },
+  "tools": {
+    "read_inbox": {
+      "risk": "low",
+      "source": "untrusted",
+      "args": {}
+    },
+    "get_balance": {
+      "risk": "low",
+      "source": "trusted",
+      "args": {}
+    },
+    "list_payees": {
+      "risk": "low",
+      "source": "trusted",
+      "args": {}
+    },
+    "transfer_funds": {
+      "risk": "critical",
+      "source": "trusted",
+      "on_tainted": "require_approval",
+      "on_provenance": "deny",
+      "args": {
+        "to_account": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{8,17}$",
+          "allowlist": "registered_payees",
+          "on_allowlist_miss": "require_approval"
+        },
+        "amount": { "type": "number", "required": true, "min": 0.01, "max": 1000000 },
+        "memo": { "type": "string", "max_len": 140 }
+      },
+      "approval": {
+        "amount_arg": "amount",
+        "threshold": 10000,
+        "dual_control_threshold": 100000
+      }
+    },
+    "delete_audit_logs": {
+      "risk": "critical",
+      "source": "trusted",
+      "args": {}
+    }
+  },
+  "lists": {
+    "registered_payees": ["12345678", "87654321"]
+  }
+}

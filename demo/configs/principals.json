@@ -1,0 +1,21 @@
+{
+  "agents": {
+    "treasury-assistant": {
+      "token_sha256": "931099ad60dd1897b5afb7c503d3b7171638734152cb6b9d4313bb754701a581"
+    }
+  },
+  "humans": {
+    "maria.lopez": {
+      "token_sha256": "9c72cc26a0a57dae8672832acb40a2e1356bc621b0cface839dd3c199ef51385",
+      "roles": ["approver"]
+    },
+    "james.chen": {
+      "token_sha256": "cf897006c3e111f5ca03386e649ee8283b0f4b8355f935a1e450e6f4bdbbe5ea",
+      "roles": ["approver", "auditor"]
+    },
+    "priya.nair": {
+      "token_sha256": "4344444ef6997fa9d22e88a62ec1d522d3fd877d0867e1c799d008af9ff50c84",
+      "roles": ["overseer", "auditor"]
+    }
+  }
+}
